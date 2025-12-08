@@ -1,37 +1,43 @@
-const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
+const mongoose = require("mongoose");
 
-const connectDB = async () => {
+const MONGO_URI = process.env.MONGO_URI;
+
+async function connectDB() {
   try {
-    const uri = process.env.MONGO_URI;
-    if (!uri) {
-      throw new Error("MONGO_URI is not defined in .env");
+    const keyPath = process.env.MONGO_X509_KEY_PATH;
+
+    let options = {};
+
+    if (keyPath) {
+      // Hỗ trợ cả path tuyệt đối (Render) lẫn path tương đối (local)
+      const certPath = path.isAbsolute(keyPath)
+        ? keyPath
+        : path.resolve(__dirname, "..", keyPath);
+
+      if (!fs.existsSync(certPath)) {
+        throw new Error(`X.509 cert file not found at: ${certPath}`);
+      }
+
+      options = {
+        ssl: true,
+        tlsCertificateKeyFile: certPath,
+        authMechanism: "MONGODB-X509",
+      };
     }
 
-    const certPath = process.env.MONGO_X509_KEY_PATH;
-    if (!certPath) {
-      throw new Error("MONGO_X509_KEY_PATH is not defined in .env");
-    }
-
-    const absPath = path.resolve(certPath);
-    if (!fs.existsSync(absPath)) {
-      throw new Error(`X.509 cert file not found at: ${absPath}`);
-    }
-
-    const conn = await mongoose.connect(uri, {
-      tls: true,
-      tlsCertificateKeyFile: absPath,
-    });
-
+    await mongoose.connect(MONGO_URI, options);
     console.log(
       "======= Task-Management-Service: MongoDB connected =======",
-      conn.connection.host
+      mongoose.connection.host
     );
-  } catch (error) {
-    console.error("Task-Management-Service: MongoDB connection error:", error);
-    process.exit(1);
+  } catch (err) {
+    console.error(
+      "Task-Management-Service: MongoDB connection error:",
+      err
+    );
   }
-};
+}
 
 module.exports = connectDB;
