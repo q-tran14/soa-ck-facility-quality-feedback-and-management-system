@@ -122,7 +122,8 @@ router.post("/email/send", notificationController.SendEmail);
  * /api/users/register:
  *   post:
  *     tags: [User]
- *     summary: Đăng ký tài khoản khách hàng
+ *     summary: Đăng ký tài khoản người dùng
+ *     description: "Đăng ký tài khoản với các vai trò: Reporter, Manager, Technician."
  *     requestBody:
  *       required: true
  *       content:
@@ -130,10 +131,11 @@ router.post("/email/send", notificationController.SendEmail);
  *           schema:
  *             type: object
  *             properties:
- *               fullName: { type: string }
+ *               name: { type: string }
  *               phone: { type: string }
  *               email: { type: string }
  *               password: { type: string }
+ *               role: { type: string, enum: [Reporter, Manager, Technician] }
  *     responses:
  *       200:
  *         description: Đăng ký thành công
@@ -182,6 +184,98 @@ router.post("/users/login", userService.Login);
  *         description: Cập nhật mật khẩu thành công
  */
 router.post("/users/reset-password", userService.ResetPassword);
+
+/**
+ * @openapi
+ * /api/users/email/{email}:
+ *   get:
+ *     tags: [User]
+ *     summary: Lấy thông tin user theo email
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Thông tin user
+ */
+router.get("/users/email/:email", userService.GetUserByEmail);
+
+/**
+ * @openapi
+ * /api/users/{id}:
+ *   get:
+ *     tags: [User]
+ *     summary: Lấy thông tin 1 user theo UserID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Trả về thông tin người dùng
+ */
+router.get("/users/:id", userService.GetUser);
+
+/**
+ * @openapi
+ * /api/users:
+ *   get:
+ *     tags: [User]
+ *     summary: Lấy danh sách toàn bộ user
+ *     responses:
+ *       200:
+ *         description: Danh sách người dùng
+ */
+router.get("/users", userService.GetAllUsers);
+
+/**
+ * @openapi
+ * /api/users/role/{role}:
+ *   get:
+ *     tags: [User]
+ *     summary: Lấy danh sách user theo role
+ *     parameters:
+ *       - in: path
+ *         name: role
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [Reporter, Manager, Technician]
+ *     responses:
+ *       200:
+ *         description: Danh sách người dùng theo role
+ */
+router.get("/users/role/:role", userService.GetUsersByRole);
+
+/**
+ * @openapi
+ * /api/users/{id}/role:
+ *   put:
+ *     tags: [User]
+ *     summary: Cập nhật role của người dùng
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newRole:
+ *                 type: string
+ *                 enum: [Reporter, Manager, Technician]
+ *     responses:
+ *       200:
+ *         description: Cập nhật role thành công
+ */
+router.put("/users/:id/role", userService.UpdateRole);
 
 module.exports = router;
 

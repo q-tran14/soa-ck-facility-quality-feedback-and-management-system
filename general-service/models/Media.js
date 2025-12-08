@@ -11,6 +11,10 @@ const MediaSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    pdfUrl: {
+      type: String,
+      default: null,
+    },
     resourceType: {
       type: String,
       enum: ["image", "video", "raw"],
@@ -19,6 +23,14 @@ const MediaSchema = new mongoose.Schema(
     extension: {
       type: String,
       required: true,
+    },
+    taskId: {
+      type: String,
+      default: null,
+    },
+    reportId: {
+      type: String,
+      default: null,
     },
   },
   { timestamps: true }
