@@ -70,7 +70,7 @@ app.use("/api/media", mediaRoutes);
 const isDev = process.env.NODE_ENV === "development";
 
 app.listen(port, () => {
-  const docsUrl = `http://localhost:${port}/docs`;
+  const docsUrl = `${process.env.API_BASE_URL}/docs`;
   console.log(`General API Docs is running on ${docsUrl}`);
 
   if (isDev) {
