@@ -28,7 +28,14 @@ app.get("/docs-json", (req, res) => {
 });
 
 // trang UI swagger
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use(
+  "/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: "Task Management Service API", // tên m muốn
+  })
+);
+
 
 const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {
