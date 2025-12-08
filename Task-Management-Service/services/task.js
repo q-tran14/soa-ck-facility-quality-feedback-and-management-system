@@ -1,7 +1,9 @@
 // Task-Management-Service/services/task.js
 const { Task, TASK_STATUS } = require("../models/task");
 
-// Helper: push vào statusHistory
+// ================== Helpers chung ==================
+
+// Ghi log history status
 const pushStatusHistory = (task, { status, note, changedBy }) => {
   task.statusHistory.push({
     status,
@@ -10,26 +12,18 @@ const pushStatusHistory = (task, { status, note, changedBy }) => {
   });
 };
 
-// TODO: sau này m nối với User Service thì lấy userId & role từ token
-const getCurrentUserId = (req) => {
-  // ví dụ sau này: return req.user.id;
-  return req.headers["x-user-id"] || null;
-};
+// Lấy userId/role (sau này nối UserService thì thay bằng req.user)
+const getCurrentUserId = (req) => req.headers["x-user-id"] || null;
+const getCurrentUserRole = (req) => req.headers["x-user-role"] || null;
 
-const getCurrentUserRole = (req) => {
-  // ví dụ sau này: return req.user.role;
-  return req.headers["x-user-role"] || null;
-};
+// Ưu tiên header -> body.changedBy -> fallback
+const getActorId = (req, fallback = "system") =>
+  getCurrentUserId(req) || req.body.changedBy || fallback;
 
-const getActorId = (req, fallback = "system") => {
-  // ưu tiên: header -> body.changedBy -> fallback
-  return getCurrentUserId(req) || req.body.changedBy || fallback;
-};
-
-
+// Check permission cơ bản (Manager/Technician)
 const ensureManagerOrTechnician = (req, res) => {
   const role = getCurrentUserRole(req);
-  // ! CALL USER SERVICE TO VERIFY USER & ROLE
+  // ! CALL USER SERVICE TO VERIFY USER & ROLE (sau này)
   if (role && role !== "MANAGER" && role !== "TECHNICIAN") {
     res.status(403).json({ message: "Không có quyền thao tác Task" });
     return false;
@@ -37,27 +31,60 @@ const ensureManagerOrTechnician = (req, res) => {
   return true;
 };
 
-// ========== CRUD cơ bản ==========
+// Helper: tìm task theo taskCode
+const findTaskByCode = async (taskCode) => {
+  return Task.findOne({ taskCode });
+};
 
+// Sinh taskCode dạng T0001, T0002, ...
+const generateTaskCode = async () => {
+  const lastTask = await Task.findOne()
+    .sort({ createdAt: -1 })
+    .select("taskCode")
+    .lean();
+
+  let nextNumber = 1;
+
+  if (lastTask && lastTask.taskCode) {
+    const match = lastTask.taskCode.match(/^T(\d+)$/);
+    if (match) {
+      nextNumber = parseInt(match[1], 10) + 1;
+    }
+  }
+
+  return `T${String(nextNumber).padStart(4, "0")}`; // T0001, T0002, ...
+};
+
+// ================== CRUD cơ bản ==================
+
+// POST /api/tasks
 const CreateTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const {
-      reportId,
-      assignedTo,
+      reportId,     // RP-U01-01
+      managerId,    // ManagerID
+      technicianId, // TechnicianID
       title,
       description,
       deadline,
-      createdBy, // nếu chưa có auth thì FE gửi lên tạm
     } = req.body;
 
-    const creatorId = createdBy || getActorId(req, "manager-unknown");
+    if (!reportId || !managerId || !title) {
+      return res.status(400).json({
+        message: "reportId, managerId, title là bắt buộc",
+      });
+    }
+
+    const taskCode = await generateTaskCode();
+    const creatorId = managerId || getActorId(req, "manager-unknown");
 
     const task = new Task({
+      taskCode,
       reportId,
-      createdBy: creatorId,
-      assignedTo,
+      managerId: creatorId,
+      technicianId,
       title,
       description,
       deadline,
@@ -80,15 +107,16 @@ const CreateTask = async (req, res) => {
   }
 };
 
-
+// GET /api/tasks
 const GetTasks = async (req, res) => {
   try {
-    const { status, assignedTo, createdBy } = req.query;
+    const { status, technicianId, managerId, reportId } = req.query;
 
     const query = {};
     if (status) query.status = status;
-    if (assignedTo) query.assignedTo = assignedTo;
-    if (createdBy) query.createdBy = createdBy;
+    if (technicianId) query.technicianId = technicianId;
+    if (managerId) query.managerId = managerId;
+    if (reportId) query.reportId = reportId;
 
     const tasks = await Task.find(query).sort({ createdAt: -1 });
 
@@ -101,30 +129,35 @@ const GetTasks = async (req, res) => {
   }
 };
 
-// dùng riêng cho yêu cầu “lấy danh sách task theo TechnicianID”
-const GetTasksByTechnician = async (req, res) => {
+// GET /api/tasks/:taskCode
+const GetTaskByTaskCode = async (req, res) => {
   try {
-    const { technicianId } = req.params;
-    const { status } = req.query;
+    const { taskCode } = req.params;
 
-    const query = { assignedTo: technicianId };
-    if (status) query.status = status;
+    const task = await Task.findOne({ taskCode });
 
-    const tasks = await Task.find(query).sort({ createdAt: -1 });
-    return res.status(200).json(tasks);
+    if (!task) {
+      return res.status(404).json({ message: "Không tìm thấy task" });
+    }
+
+    return res.status(200).json(task);
   } catch (error) {
-    console.error("GetTasksByTechnician error:", error);
+    console.error("GetTaskByTaskCode error:", error);
     return res
       .status(500)
-      .json({ message: "Lấy danh sách task theo technician thất bại", error: error.message });
+      .json({ message: "Lấy task thất bại", error: error.message });
   }
 };
 
+
+// ================== Dùng taskCode thay cho _id ==================
+
+// GET /api/tasks/:taskCode
 const GetTaskById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { taskCode } = req.params;
 
-    const task = await Task.findById(id);
+    const task = await findTaskByCode(taskCode);
 
     if (!task) {
       return res.status(404).json({ message: "Không tìm thấy task" });
@@ -139,16 +172,17 @@ const GetTaskById = async (req, res) => {
   }
 };
 
+// PUT /api/tasks/:taskCode
 const UpdateTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
-    const { id } = req.params;
-    const { title, description, assignedTo, deadline } = req.body;
+    const { taskCode } = req.params;
+    const { title, description, technicianId, deadline } = req.body;
 
-    const task = await Task.findByIdAndUpdate(
-      id,
-      { title, description, assignedTo, deadline },
+    const task = await Task.findOneAndUpdate(
+      { taskCode },
+      { title, description, technicianId, deadline },
       { new: true }
     );
 
@@ -167,23 +201,24 @@ const UpdateTask = async (req, res) => {
 
 // ========== Flow Technician hoàn thành & upload file ==========
 
+// PATCH /api/tasks/:taskCode/technician-complete
 const TechnicianCompleteTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
-    const { id } = req.params;
-    const { attachments, note } = req.body;
+    const { taskCode } = req.params;
+    const { attachmentIds, note } = req.body; // swagger dùng attachmentIds
 
-    const task = await Task.findById(id);
+    const task = await findTaskByCode(taskCode);
     if (!task) {
       return res.status(404).json({ message: "Không tìm thấy task" });
     }
 
-    const userId = getActorId(req, task.assignedTo || "technician-unknown");
+    const userId = getActorId(req, task.technicianId || "technician-unknown");
 
     // ! CALL MEDIA SERVICE TO VERIFY / GET ATTACHMENT INFO
-    if (attachments && attachments.length) {
-      task.attachments = attachments;
+    if (attachmentIds && attachmentIds.length) {
+      task.attachments = attachmentIds;
     }
 
     task.status = TASK_STATUS.WAITING_APPROVAL;
@@ -207,24 +242,24 @@ const TechnicianCompleteTask = async (req, res) => {
   }
 };
 
-
 // ========== Flow Manager duyệt ==========
+
+// PATCH /api/tasks/:taskCode/manager-review
 const ManagerReviewTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
-    const { id } = req.params;
-    const { approved, reason } = req.body;
+    const { taskCode } = req.params;
+    const { isApproved, reason } = req.body; // swagger dùng isApproved
 
-    const task = await Task.findById(id);
+    const task = await findTaskByCode(taskCode);
     if (!task) {
       return res.status(404).json({ message: "Không tìm thấy task" });
     }
 
-    const userId = getActorId(req, task.createdBy || "manager-unknown");
+    const userId = getActorId(req, task.managerId || "manager-unknown");
 
-    if (approved) {
-      // ✅ dùng APPROVED, đúng với enum
+    if (isApproved) {
       task.status = TASK_STATUS.APPROVED;
       task.isFailedStandard = false;
       task.reason = undefined;
@@ -235,7 +270,6 @@ const ManagerReviewTask = async (req, res) => {
         changedBy: userId,
       });
     } else {
-      // không đạt chuẩn → quay lại PROCESSING & gắn cờ failedStandard
       task.status = TASK_STATUS.PROCESSING;
       task.isFailedStandard = true;
       task.reason = reason;
@@ -259,18 +293,20 @@ const ManagerReviewTask = async (req, res) => {
 };
 
 // ========== API đổi status tự do (nếu vẫn muốn giữ) ==========
+
+// PATCH /api/tasks/:taskCode/status
 const UpdateTaskStatus = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
-    const { id } = req.params;
+    const { taskCode } = req.params;
     const { status, reason, isFailedStandard, changedBy } = req.body;
 
     if (!Object.values(TASK_STATUS).includes(status)) {
       return res.status(400).json({ message: "Trạng thái không hợp lệ" });
     }
 
-    const task = await Task.findById(id);
+    const task = await findTaskByCode(taskCode);
     if (!task) {
       return res.status(404).json({ message: "Không tìm thấy task" });
     }
@@ -300,12 +336,11 @@ const UpdateTaskStatus = async (req, res) => {
   }
 };
 
-
 module.exports = {
   CreateTask,
   GetTasks,
-  GetTasksByTechnician,
   GetTaskById,
+  GetTaskByTaskCode,  
   UpdateTask,
   TechnicianCompleteTask,
   ManagerReviewTask,

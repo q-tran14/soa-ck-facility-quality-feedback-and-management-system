@@ -12,30 +12,27 @@ const TASK_STATUS = {
 
 const StatusHistorySchema = new mongoose.Schema(
   {
-    status: {
-      type: String,
-      enum: Object.values(TASK_STATUS),
-      required: true,
-    },
+    status: { type: String, enum: Object.values(TASK_STATUS), required: true },
     note: String,
-    changedBy: {
-      type: String, 
-      required: true,
-    },
-    changedAt: {
-      type: Date,
-      default: Date.now,
-    },
+    changedBy: { type: String, required: true },
+    changedAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
 const TaskSchema = new mongoose.Schema(
   {
-    // ID bên các service khác => string
-    reportId: { type: String },
-    createdBy: { type: String, required: true }, // manager-1
-    assignedTo: { type: String }, // tech-1
+    // Mã task để hiển thị
+    taskCode: {
+      type: String,
+      required: true,
+      unique: true,   // đảm bảo mỗi taskCode chỉ xuất hiện 1 lần
+    },
+
+    // gắn với report
+    reportId: { type: String, required: true },     // ví dụ RP-U01-01
+    managerId: { type: String, required: true },    // Manager tạo task
+    technicianId: { type: String },                 // Technician được giao
 
     title: { type: String, required: true },
     description: String,
@@ -49,8 +46,6 @@ const TaskSchema = new mongoose.Schema(
 
     isFailedStandard: { type: Boolean, default: false },
     reason: String,
-
-    // list mediaId từ Media Service
     attachments: [{ type: String }],
 
     statusHistory: [StatusHistorySchema],
