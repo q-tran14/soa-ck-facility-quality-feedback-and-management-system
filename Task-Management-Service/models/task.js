@@ -1,13 +1,12 @@
+// Task-Management-Service/models/task.js
 const mongoose = require("mongoose");
 
 const TASK_STATUS = {
   PENDING: "PENDING",
-  WAITING_MATERIAL: "WAITING_MATERIAL",
+  PROCESSING: "PROCESSING",
+  WAITING_APPROVAL: "WAITING_APPROVAL",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
-  PROCESSING: "PROCESSING",
-  DONE: "DONE",
-  SUCCESS: "SUCCESS",
   FAILED_STANDARD: "FAILED_STANDARD",
 };
 
@@ -19,20 +18,28 @@ const StatusHistorySchema = new mongoose.Schema(
       required: true,
     },
     note: String,
-    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    changedAt: { type: Date, default: Date.now },
+    changedBy: {
+      type: String, 
+      required: true,
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { _id: false }
 );
 
 const TaskSchema = new mongoose.Schema(
   {
-    reportId: { type: mongoose.Schema.Types.ObjectId, ref: "Report" },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    // ID bên các service khác => string
+    reportId: { type: String },
+    createdBy: { type: String, required: true }, // manager-1
+    assignedTo: { type: String }, // tech-1
 
     title: { type: String, required: true },
     description: String,
+    deadline: Date,
 
     status: {
       type: String,
@@ -40,12 +47,11 @@ const TaskSchema = new mongoose.Schema(
       default: TASK_STATUS.PENDING,
     },
 
-    reason: String,
     isFailedStandard: { type: Boolean, default: false },
+    reason: String,
 
-    attachments: [{ type: mongoose.Schema.Types.ObjectId, ref: "Attachment" }],
-
-    deadline: Date,
+    // list mediaId từ Media Service
+    attachments: [{ type: String }],
 
     statusHistory: [StatusHistorySchema],
   },
@@ -54,8 +60,4 @@ const TaskSchema = new mongoose.Schema(
 
 const Task = mongoose.model("Task", TaskSchema);
 
-// QUAN TRỌNG: export theo đúng dạng object
-module.exports = {
-  Task,
-  TASK_STATUS,
-};
+module.exports = { Task, TASK_STATUS };
