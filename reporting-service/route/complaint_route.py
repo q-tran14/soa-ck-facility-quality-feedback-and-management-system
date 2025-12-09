@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Header, Depends
-from model.Complaint import Complaint, ComplaintCreate
+from model.Complaint import Complaint, ComplaintCreate, ComplaintStatus
 # Import reports_collection để check trạng thái báo cáo gốc
 from database import complaints_collection, reports_collection
 from datetime import datetime
@@ -47,6 +47,10 @@ async def verify_user_from_general_service(user_id: str = Header(..., alias="use
 # Hàm lấy UserID từ Header
 def get_user_id_from_header(user_id: str = Header(..., alias="user-id")): # Tên biến 'user_id'
     return user_id
+
+def get_user_role(x_role: str = Header("USER", alias="X-Role")):
+    """Lấy Role từ Header X-Role"""
+    return x_role
 ## ---- ##
 
 def complaint_serializer(complaint) -> dict:
@@ -133,3 +137,41 @@ def get_complaints_by_report(report_id: str):
     for c in complaints_collection.find({"ReportId": report_id}):
         complaints.append(complaint_serializer(c))
     return complaints
+
+# --- UPDATE COMPLAINT STATUS (PATCH) ---
+@router.patch("/complaints/{complaint_id}/status", response_model=dict)
+def update_complaint_status(
+    complaint_id: str, 
+    new_status: ComplaintStatus, 
+    role: str = Depends(get_user_role)
+):
+    # 1. Kiểm tra quyền MANAGER
+    if role != "MANAGER":
+        raise HTTPException(
+            status_code=403, 
+            detail="Permission denied: Only MANAGER can update complaint status."
+        )
+
+    # 2. Chuẩn bị dữ liệu cập nhật
+    update_fields = {
+        "Status": new_status,
+    }
+
+    # 3. Thực hiện cập nhật
+    result = complaints_collection.update_one(
+        {"ComplaintId": complaint_id},
+        {"$set": update_fields}
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # 4. Lấy lại dữ liệu và serialize
+    complaint = complaints_collection.find_one({"ComplaintId": complaint_id})
+    
+    # Nếu APPROVED, bạn có thể cân nhắc reset Status của Report gốc từ IN_PROGRESS về PENDING/REJECTED.
+    
+    return {
+        "message": f"Complaint status updated to {new_status}", 
+        "data": complaint_serializer(complaint)
+    }

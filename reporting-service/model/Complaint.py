@@ -1,13 +1,16 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+from enum import Enum
 
-# 1. Base: Dùng cho update
+class ComplaintStatus(str, Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+
 class ComplaintBase(BaseModel):
     Content: Optional[str] = None
     Status: Optional[str] = None
 
-# 2. ComplaintCreate: Input của người dùng
 class ComplaintCreate(BaseModel):
     Content: str  
 
