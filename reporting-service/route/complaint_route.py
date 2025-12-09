@@ -3,6 +3,7 @@ from model.Complaint import Complaint, ComplaintCreate
 # Import reports_collection để check trạng thái báo cáo gốc
 from database import complaints_collection, reports_collection
 from datetime import datetime
+import uuid
 import httpx
 
 router = APIRouter()
@@ -68,6 +69,7 @@ async def create_complaint(
     user_info: dict = Depends(verify_user_from_general_service)
 ):
     user_id = user_info["UserID"]
+    
     # 1. Kiểm tra Report tồn tại
     report = reports_collection.find_one({"ReportId": report_id})
     if not report:
@@ -81,9 +83,20 @@ async def create_complaint(
 
     complaint_data = complaint_input.dict()
     
-    # 2. LOGIC TẠO ID MỚI: CP + ReportID
-    # Ví dụ ReportID là RPUS00101 -> ComplaintID là CPRPUS00101
-    complaint_data["ComplaintId"] = f"CP{report_id}"
+    # === LOGIC TẠO ID MỚI ĐÃ SỬA ===
+    
+    # 2. Đếm số lượng khiếu nại đã tồn tại cho ReportId này
+    current_count = complaints_collection.count_documents({"ReportId": report_id})
+    next_seq = current_count + 1
+    
+    # 3. Format số thứ tự (ví dụ: 1 -> '01', 10 -> '10')
+    next_seq_formatted = f"{next_seq:02d}"
+    
+    # 4. Tạo ComplaintId: CP + ReportID + Số thứ tự
+    # Ví dụ: Nếu ReportId là RPUS00101 và đây là Complaint thứ nhất: CPRPUS0010101
+    complaint_data["ComplaintId"] = f"CP{report_id}{next_seq_formatted}"
+    
+    # === KẾT THÚC LOGIC ID MỚI ===
     
     complaint_data["ReportId"] = report_id
     complaint_data["UserID"] = user_id
@@ -91,7 +104,7 @@ async def create_complaint(
     complaint_data["Status"] = "PENDING"
 
     # Lưu và cập nhật trạng thái Report gốc
-    complaints_collection.insert_one(complaint_data)
+    result = complaints_collection.insert_one(complaint_data) # Thêm result = 
 
     reports_collection.update_one(
         {"ReportId": report_id},
@@ -103,10 +116,17 @@ async def create_complaint(
             }
         }
     )
+    
+    # Lấy lại document để serialize datetime object (khắc phục lỗi 500 trước đó)
+    new_complaint = complaints_collection.find_one({"_id": result.inserted_id})
 
-    return {"message": "Complaint submitted successfully", "data": complaint_data}
+    # Trả về kết quả sau khi đã serialize
+    return {
+        "message": "Complaint submitted successfully", 
+        "data": complaint_serializer(new_complaint)
+    }
 
-# Lấy danh sách khiếu nại của 1 report
+# Lấy danh sách khiếu nại của 1 report (giữ nguyên)
 @router.get("/report/{report_id}", response_model=list)
 def get_complaints_by_report(report_id: str):
     complaints = []
