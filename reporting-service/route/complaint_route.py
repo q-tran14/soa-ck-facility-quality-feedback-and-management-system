@@ -3,11 +3,46 @@ from model.Complaint import Complaint, ComplaintCreate
 # Import reports_collection để check trạng thái báo cáo gốc
 from database import complaints_collection, reports_collection
 from datetime import datetime
-from reporting_service_route import verify_user_from_general_service
+import httpx
 
 router = APIRouter()
 
-# ! CALL USER SERVICE TO VERIFY USER (UserID)
+GENERAL_SERVICE_URL = "https://general-service-u75j.onrender.com/api/users"
+
+async def verify_user_from_general_service(user_id: str = Header(..., alias="user-id")):
+    """
+    Hàm này sẽ:
+    1. Lấy user-id từ Header gửi lên.
+    2. Gọi sang General Service để tìm user đó.
+    3. Nếu thấy -> Trả về dict chứa UserID và Role chuẩn từ DB.
+    4. Nếu không thấy hoặc lỗi mạng -> Báo lỗi 401/500.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            # Gọi API GET danh sách user
+            response = await client.get(GENERAL_SERVICE_URL)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to connect to User Service")
+            
+            users_list = response.json()
+            
+            # Tìm user có UserID khớp với header gửi lên
+            target_user = next((u for u in users_list if u.get("UserID") == user_id), None)
+            
+            if not target_user:
+                raise HTTPException(status_code=401, detail="User ID not found in General Service")
+            
+            # Trả về thông tin user đã xác thực
+            return {
+                "UserID": target_user["UserID"],
+                "Role": target_user["Role"], 
+                "Email": target_user.get("Email")
+            }
+
+    except httpx.RequestError:
+        raise HTTPException(status_code=503, detail="General Service unavailable")
+    
 # Hàm lấy UserID từ Header
 def get_user_id_from_header(user_id: str = Header(..., alias="user-id")): # Tên biến 'user_id'
     return user_id
