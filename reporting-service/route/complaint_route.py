@@ -145,31 +145,37 @@ def update_complaint_status(
     new_status: ComplaintStatus, 
     role: str = Depends(get_user_role)
 ):
-    # 1. Kiểm tra quyền MANAGER
+    # 1. Kiểm tra quyền MANAGER (Giữ nguyên)
     if role != "MANAGER":
         raise HTTPException(
             status_code=403, 
             detail="Permission denied: Only MANAGER can update complaint status."
         )
 
-    # 2. Chuẩn bị dữ liệu cập nhật
-    update_fields = {
-        "Status": new_status,
-    }
-
-    # 3. Thực hiện cập nhật
+    # 2. Thực hiện cập nhật Complaint (Giữ nguyên)
     result = complaints_collection.update_one(
         {"ComplaintId": complaint_id},
-        {"$set": update_fields}
+        {"$set": {"Status": new_status}}
     )
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Complaint not found")
     
-    # 4. Lấy lại dữ liệu và serialize
+    # 3. Lấy lại dữ liệu Complaint sau khi update
     complaint = complaints_collection.find_one({"ComplaintId": complaint_id})
+    report_id = complaint["ReportId"] # Lấy ReportId
     
-    # Nếu APPROVED, bạn có thể cân nhắc reset Status của Report gốc từ IN_PROGRESS về PENDING/REJECTED.
+    # === BỔ SUNG LOGIC XỬ LÝ REPORT GỐC ===
+    if new_status == ComplaintStatus.APPROVED:
+        # Nếu Complaint được APPROVED, reset Report gốc về trạng thái cần xử lý lại (ví dụ: WAITING)
+        reports_collection.update_one(
+            {"ReportId": report_id},
+            {"$set": {
+                "Status": "WAITING", # Hoặc PENDING, trạng thái bắt đầu xử lý lại
+                "Updated_at": datetime.utcnow(),
+                "Note": f"Re-opened by MANAGER approval of complaint {complaint_id}."
+            }}
+        )
     
     return {
         "message": f"Complaint status updated to {new_status}", 
