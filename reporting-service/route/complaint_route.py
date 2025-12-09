@@ -74,57 +74,32 @@ async def create_complaint(
 ):
     user_id = user_info["UserID"]
     
-    # 1. Kiểm tra Report tồn tại
+    # 1. Kiểm tra Report tồn tại và Status
     report = reports_collection.find_one({"ReportId": report_id})
     if not report:
         raise HTTPException(status_code=404, detail="Report ID not found")
-
     if report["Status"] != "COMPLETED":
-        raise HTTPException(
-            status_code=400, 
-            detail="You can only file a complaint for COMPLETED reports."
-        )
+        raise HTTPException(status_code=400, detail="You can only file a complaint for COMPLETED reports.")
 
     complaint_data = complaint_input.dict()
     
-    # === LOGIC TẠO ID MỚI ĐÃ SỬA ===
-    
-    # 2. Đếm số lượng khiếu nại đã tồn tại cho ReportId này
+    # Logic tạo ID (Giữ nguyên)
     current_count = complaints_collection.count_documents({"ReportId": report_id})
     next_seq = current_count + 1
-    
-    # 3. Format số thứ tự (ví dụ: 1 -> '01', 10 -> '10')
     next_seq_formatted = f"{next_seq:02d}"
-    
-    # 4. Tạo ComplaintId: CP + ReportID + Số thứ tự
-    # Ví dụ: Nếu ReportId là RPUS00101 và đây là Complaint thứ nhất: CPRPUS0010101
     complaint_data["ComplaintId"] = f"CP{report_id}{next_seq_formatted}"
-    
-    # === KẾT THÚC LOGIC ID MỚI ===
     
     complaint_data["ReportId"] = report_id
     complaint_data["UserID"] = user_id
     complaint_data["Created_at"] = datetime.utcnow()
-    complaint_data["Status"] = "PENDING"
+    complaint_data["Status"] = "PENDING" # Complaint mới tạo luôn là PENDING
 
-    # Lưu và cập nhật trạng thái Report gốc
-    result = complaints_collection.insert_one(complaint_data) # Thêm result = 
+    # Lưu Complaint vào DB
+    result = complaints_collection.insert_one(complaint_data) 
 
-    reports_collection.update_one(
-        {"ReportId": report_id},
-        {
-            "$set": {
-                "Status": "IN_PROGRESS",
-                "Updated_at": datetime.utcnow(),
-                "Note": f"Re-opened due to complaint: {complaint_input.Content}"
-            }
-        }
-    )
-    
-    # Lấy lại document để serialize datetime object (khắc phục lỗi 500 trước đó)
+    # Lấy lại document để serialize
     new_complaint = complaints_collection.find_one({"_id": result.inserted_id})
 
-    # Trả về kết quả sau khi đã serialize
     return {
         "message": "Complaint submitted successfully", 
         "data": complaint_serializer(new_complaint)
@@ -138,7 +113,6 @@ def get_complaints_by_report(report_id: str):
         complaints.append(complaint_serializer(c))
     return complaints
 
-# --- UPDATE COMPLAINT STATUS (PATCH) ---
 @router.patch("/complaints/{complaint_id}/status", response_model=dict)
 def update_complaint_status(
     complaint_id: str, 
@@ -147,10 +121,7 @@ def update_complaint_status(
 ):
     # 1. Kiểm tra quyền MANAGER (Giữ nguyên)
     if role != "MANAGER":
-        raise HTTPException(
-            status_code=403, 
-            detail="Permission denied: Only MANAGER can update complaint status."
-        )
+        raise HTTPException(status_code=403, detail="Permission denied: Only MANAGER can update complaint status.")
 
     # 2. Thực hiện cập nhật Complaint (Giữ nguyên)
     result = complaints_collection.update_one(
@@ -161,19 +132,31 @@ def update_complaint_status(
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Complaint not found")
     
-    # 3. Lấy lại dữ liệu Complaint sau khi update
+    # 3. Lấy lại dữ liệu Complaint sau khi update và ReportId
     complaint = complaints_collection.find_one({"ComplaintId": complaint_id})
-    report_id = complaint["ReportId"] # Lấy ReportId
+    report_id = complaint["ReportId"] 
     
-    # === BỔ SUNG LOGIC XỬ LÝ REPORT GỐC ===
+    # === XỬ LÝ REPORT GỐC THEO LOGIC MỚI ===
+    
     if new_status == ComplaintStatus.APPROVED:
-        # Nếu Complaint được APPROVED, reset Report gốc về trạng thái cần xử lý lại (ví dụ: WAITING)
+        # YÊU CẦU MỚI: Nếu APPROVED, Report chuyển sang IN_PROGRESS
         reports_collection.update_one(
             {"ReportId": report_id},
             {"$set": {
-                "Status": "WAITING", # Hoặc PENDING, trạng thái bắt đầu xử lý lại
+                "Status": "IN_PROGRESS", # CHUYỂN SANG IN_PROGRESS
                 "Updated_at": datetime.utcnow(),
-                "Note": f"Re-opened by MANAGER approval of complaint {complaint_id}."
+                "Note": f"Report re-opened due to complaint {complaint_id} approval by MANAGER."
+            }}
+        )
+    elif new_status == ComplaintStatus.REJECTED: 
+        # YÊU CẦU MỚI: Nếu REJECTED, Report giữ nguyên trạng thái COMPLETED
+        # (Chỉ cập nhật Updated_at và Note, Status vẫn là COMPLETED)
+        reports_collection.update_one(
+            {"ReportId": report_id},
+            {"$set": {
+                "Status": "COMPLETED", # GIỮ NGUYÊN COMPLETED
+                "Updated_at": datetime.utcnow(),
+                "Note": f"Complaint {complaint_id} rejected by MANAGER. Original resolution confirmed."
             }}
         )
     

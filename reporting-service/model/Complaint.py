@@ -6,6 +6,7 @@ from enum import Enum
 class ComplaintStatus(str, Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 class ComplaintBase(BaseModel):
     Content: Optional[str] = None
