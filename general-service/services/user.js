@@ -12,7 +12,7 @@ const userController = {
       return res.status(400).json({ message: "Thiếu thông tin" });
     }
 
-    if (!["Reporter", "Manager", "Technician"].includes(role)) {
+    if (!["Citizen", "Manager", "Technician"].includes(role)) {
       return res.status(400).json({ message: "Role không hợp lệ" });
     }
 
@@ -132,7 +132,7 @@ const userController = {
   GetUsersByRole: asyncHandler(async (req, res) => {
     const { role } = req.params;
 
-    if (!["Reporter", "Manager", "Technician"].includes(role))
+    if (!["Citizen", "Manager", "Technician"].includes(role))
       return res.status(400).json({ message: "Role không hợp lệ" });
 
     const users = await User.findByRole(role);
@@ -144,7 +144,7 @@ const userController = {
     const { id } = req.params;
     const { newRole } = req.body;
 
-    if (!["Reporter", "Manager", "Technician"].includes(newRole))
+    if (!["Citizen", "Manager", "Technician"].includes(newRole))
       return res.status(400).json({ message: "Role không hợp lệ" });
 
     await User.updateRole(id, newRole);

@@ -13,7 +13,7 @@ const router = express.Router();
  *   - name: Notification
  *     description: Gửi email thông báo
  *   - name: User
- *     description: Quản lý tài khoản User (Người báo cáo, Nhân viên tiếp nhận và điều phối xử lí, Nhân viên kỹ thuật tại hiện trường) và phân quyền cho từng người dùng
+ *     description: Quản lý tài khoản User (Người dân, Nhân viên tiếp nhận và điều phối xử lí, Nhân viên kỹ thuật tại hiện trường) và phân quyền cho từng người dùng
  *   - name: Media
  *     description: Quản lý upload, lấy và xóa file media (ảnh, video)
  */
@@ -123,7 +123,7 @@ router.post("/email/send", notificationController.SendEmail);
  *   post:
  *     tags: [User]
  *     summary: Đăng ký tài khoản người dùng
- *     description: "Đăng ký tài khoản với các vai trò: Reporter, Manager, Technician."
+ *     description: "Đăng ký tài khoản với các vai trò: Citizen, Manager, Technician."
  *     requestBody:
  *       required: true
  *       content:
@@ -135,7 +135,7 @@ router.post("/email/send", notificationController.SendEmail);
  *               phone: { type: string }
  *               email: { type: string }
  *               password: { type: string }
- *               role: { type: string, enum: [Reporter, Manager, Technician] }
+ *               role: { type: string, enum: [Citizen, Manager, Technician] }
  *     responses:
  *       200:
  *         description: Đăng ký thành công
@@ -243,7 +243,7 @@ router.get("/users", userService.GetAllUsers);
  *         required: true
  *         schema:
  *           type: string
- *           enum: [Reporter, Manager, Technician]
+ *           enum: [Citizen, Manager, Technician]
  *     responses:
  *       200:
  *         description: Danh sách người dùng theo role
@@ -270,7 +270,7 @@ router.get("/users/role/:role", userService.GetUsersByRole);
  *             properties:
  *               newRole:
  *                 type: string
- *                 enum: [Reporter, Manager, Technician]
+ *                 enum: [Citizen, Manager, Technician]
  *     responses:
  *       200:
  *         description: Cập nhật role thành công
