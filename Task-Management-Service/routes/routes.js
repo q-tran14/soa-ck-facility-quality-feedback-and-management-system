@@ -43,8 +43,6 @@ const router = express.Router();
  *                 description: ID Technician được giao xử lí
  *               title:
  *                 type: string
- *               description:
- *                 type: string
  *               deadline:
  *                 type: string
  *                 format: date-time
@@ -53,7 +51,6 @@ const router = express.Router();
  *               managerId: "manager-001"
  *               technicianId: "tech-001"
  *               title: "Sửa bóng đèn hành lang"
- *               description: "Bóng đèn tầng 3 bị cháy, cần thay mới"
  *               deadline: "2025-12-10T17:00:00Z"
  *     responses:
  *       201:
@@ -138,8 +135,6 @@ router.get("/tasks/:taskCode", taskService.GetTaskById);
  *             properties:
  *               title:
  *                 type: string
- *               description:
- *                 type: string
  *               technicianId:
  *                 type: string
  *                 description: ID technician mới
@@ -148,7 +143,6 @@ router.get("/tasks/:taskCode", taskService.GetTaskById);
  *                 format: date-time
  *             example:
  *               title: "Cập nhật mô tả nhiệm vụ"
- *               description: "Thay cả máng đèn, không chỉ bóng"
  *               technicianId: "tech-002"
  *               deadline: "2025-12-11T10:00:00Z"
  *     responses:

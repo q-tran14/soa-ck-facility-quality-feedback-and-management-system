@@ -63,7 +63,6 @@ const CreateTask = async (req, res) => {
       managerId,
       technicianId,
       title,
-      description,
       deadline,
     } = req.body;
 
@@ -82,7 +81,6 @@ const CreateTask = async (req, res) => {
       managerId: creatorId,
       technicianId,
       title,
-      description,
       deadline,
       status: TASK_STATUS.PENDING,
       // disqualifiedCount dùng default trong schema
@@ -172,11 +170,11 @@ const UpdateTask = async (req, res) => {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const { taskCode } = req.params;
-    const { title, description, technicianId, deadline } = req.body;
+    const { title, technicianId, deadline } = req.body;
 
     const task = await Task.findOneAndUpdate(
       { taskCode },
-      { title, description, technicianId, deadline },
+      { title, technicianId, deadline },
       { new: true }
     );
 

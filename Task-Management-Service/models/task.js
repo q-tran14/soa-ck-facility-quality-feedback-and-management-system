@@ -28,7 +28,6 @@ const TaskSchema = new mongoose.Schema(
     technicianId: { type: String },
 
     title: { type: String, required: true },
-    description: String,
     deadline: Date,
 
     status: {
