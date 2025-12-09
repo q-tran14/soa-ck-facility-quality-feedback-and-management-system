@@ -58,14 +58,15 @@ const generateTaskCode = async () => {
 // ================== CRUD cơ bản ==================
 
 // POST /api/tasks
+// Tạo task mới từ Report, mặc định status = PENDING
 const CreateTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const {
-      reportId,     // RP-U01-01
-      managerId,    // ManagerID
-      technicianId, // TechnicianID
+      reportId, // RP-U01-01
+      managerId,
+      technicianId,
       title,
       description,
       deadline,
@@ -89,6 +90,7 @@ const CreateTask = async (req, res) => {
       description,
       deadline,
       status: TASK_STATUS.PENDING,
+      // disqualifiedCount dùng default trong schema
     });
 
     pushStatusHistory(task, {
@@ -108,6 +110,7 @@ const CreateTask = async (req, res) => {
 };
 
 // GET /api/tasks
+// Lọc theo status, technician, manager, report
 const GetTasks = async (req, res) => {
   try {
     const { status, technicianId, managerId, reportId } = req.query;
@@ -129,6 +132,8 @@ const GetTasks = async (req, res) => {
   }
 };
 
+// ================== Dùng taskCode thay cho _id ==================
+
 // GET /api/tasks/:taskCode
 const GetTaskByTaskCode = async (req, res) => {
   try {
@@ -148,9 +153,6 @@ const GetTaskByTaskCode = async (req, res) => {
       .json({ message: "Lấy task thất bại", error: error.message });
   }
 };
-
-
-// ================== Dùng taskCode thay cho _id ==================
 
 // GET /api/tasks/:taskCode
 const GetTaskById = async (req, res) => {
@@ -173,6 +175,7 @@ const GetTaskById = async (req, res) => {
 };
 
 // PUT /api/tasks/:taskCode
+// Cập nhật thông tin cơ bản (title, desc, technician, deadline)
 const UpdateTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
@@ -199,24 +202,29 @@ const UpdateTask = async (req, res) => {
   }
 };
 
-// ========== Flow Technician hoàn thành & upload file ==========
-
 // PATCH /api/tasks/:taskCode/technician-complete
+// Technician báo đã làm xong, chuyển từ PROCESSING -> WAITING_APPROVAL
 const TechnicianCompleteTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const { taskCode } = req.params;
-    const { attachmentIds, note } = req.body; // swagger dùng attachmentIds
+    const { attachmentIds, note } = req.body;
 
     const task = await findTaskByCode(taskCode);
     if (!task) {
       return res.status(404).json({ message: "Không tìm thấy task" });
     }
 
+    // Chỉ cho complete khi đang PROCESSING
+    if (task.status !== TASK_STATUS.PROCESSING) {
+      return res.status(400).json({
+        message: `Chỉ được hoàn thành task khi đang ở trạng thái PROCESSING (hiện tại: ${task.status})`,
+      });
+    }
+
     const userId = getActorId(req, task.technicianId || "technician-unknown");
 
-    // ! CALL MEDIA SERVICE TO VERIFY / GET ATTACHMENT INFO
     if (attachmentIds && attachmentIds.length) {
       task.attachments = attachmentIds;
     }
@@ -243,14 +251,27 @@ const TechnicianCompleteTask = async (req, res) => {
 };
 
 // ========== Flow Manager duyệt ==========
-
 // PATCH /api/tasks/:taskCode/manager-review
+// Duyệt theo flow:
+//  - WAITING_MATERIAL_LIST:
+//      + isApproved = true  -> PROCESSING
+//      + isApproved = false -> REJECTED
+//  - WAITING_APPROVAL:
+//      + isApproved = true  -> APPROVED
+//      + isApproved = false -> PROCESSING (làm lại)
+// Không đụng tới disqualifiedCount – chỉ tăng bên flow khiếu nại citizen
 const ManagerReviewTask = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const { taskCode } = req.params;
-    const { isApproved, reason } = req.body; // swagger dùng isApproved
+    const { isApproved, reason } = req.body;
+
+    if (typeof isApproved !== "boolean") {
+      return res
+        .status(400)
+        .json({ message: "isApproved (boolean) là bắt buộc" });
+    }
 
     const task = await findTaskByCode(taskCode);
     if (!task) {
@@ -259,25 +280,55 @@ const ManagerReviewTask = async (req, res) => {
 
     const userId = getActorId(req, task.managerId || "manager-unknown");
 
-    if (isApproved) {
-      task.status = TASK_STATUS.APPROVED;
-      task.isFailedStandard = false;
-      task.reason = undefined;
+    if (task.status === TASK_STATUS.WAITING_MATERIAL_LIST) {
+      // Duyệt / không duyệt danh sách vật tư
+      if (isApproved) {
+        task.status = TASK_STATUS.PROCESSING;
+        task.reason = undefined;
+        task.isFailedStandard = false;
 
-      pushStatusHistory(task, {
-        status: TASK_STATUS.APPROVED,
-        note: "Manager approved",
-        changedBy: userId,
-      });
+        pushStatusHistory(task, {
+          status: TASK_STATUS.PROCESSING,
+          note: "Manager approved material list → start PROCESSING",
+          changedBy: userId,
+        });
+      } else {
+        task.status = TASK_STATUS.REJECTED;
+        task.reason = reason || "Manager rejected material list";
+
+        pushStatusHistory(task, {
+          status: TASK_STATUS.REJECTED,
+          note: task.reason,
+          changedBy: userId,
+        });
+      }
+    } else if (task.status === TASK_STATUS.WAITING_APPROVAL) {
+      // Duyệt / không duyệt kết quả thi công
+      if (isApproved) {
+        task.status = TASK_STATUS.APPROVED;
+        task.reason = undefined;
+        task.isFailedStandard = false;
+
+        pushStatusHistory(task, {
+          status: TASK_STATUS.APPROVED,
+          note: "Manager approved final result",
+          changedBy: userId,
+        });
+      } else {
+        task.status = TASK_STATUS.PROCESSING;
+        task.reason =
+          reason || "Manager không duyệt kết quả, yêu cầu technician xử lý lại";
+
+        pushStatusHistory(task, {
+          status: TASK_STATUS.PROCESSING,
+          note: task.reason,
+          changedBy: userId,
+        });
+      }
     } else {
-      task.status = TASK_STATUS.PROCESSING;
-      task.isFailedStandard = true;
-      task.reason = reason;
-
-      pushStatusHistory(task, {
-        status: TASK_STATUS.FAILED_STANDARD,
-        note: reason || "Manager rejected (failed standard)",
-        changedBy: userId,
+      // Không đúng phase để duyệt
+      return res.status(400).json({
+        message: `Không thể duyệt task ở trạng thái ${task.status}. Chỉ hỗ trợ WAITING_MATERIAL_LIST hoặc WAITING_APPROVAL.`,
       });
     }
 
@@ -292,9 +343,11 @@ const ManagerReviewTask = async (req, res) => {
   }
 };
 
+
 // ========== API đổi status tự do (nếu vẫn muốn giữ) ==========
 
 // PATCH /api/tasks/:taskCode/status
+// Hỗ trợ orchestrator / service khác tự điều khiển flow (PROCESSING, COMPLETED,...)
 const UpdateTaskStatus = async (req, res) => {
   try {
     if (!ensureManagerOrTechnician(req, res)) return;
@@ -340,7 +393,7 @@ module.exports = {
   CreateTask,
   GetTasks,
   GetTaskById,
-  GetTaskByTaskCode,  
+  GetTaskByTaskCode,
   UpdateTask,
   TechnicianCompleteTask,
   ManagerReviewTask,

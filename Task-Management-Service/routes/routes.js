@@ -20,7 +20,7 @@ const router = express.Router();
  *     description: >
  *       Tạo một task mới dựa trên báo cáo (report).
  *       reportId nhận từ Report Service (vd: RP-U01-01).
- *       taskCode sẽ được service tự sinh (TK-RP-U01-01-001, ...)
+ *       taskCode sẽ được service tự sinh (T0001, T0002, ...).
  *     requestBody:
  *       required: true
  *       content:
@@ -48,6 +48,13 @@ const router = express.Router();
  *               deadline:
  *                 type: string
  *                 format: date-time
+ *             example:
+ *               reportId: "RP-U01-01"
+ *               managerId: "manager-001"
+ *               technicianId: "tech-001"
+ *               title: "Sửa bóng đèn hành lang"
+ *               description: "Bóng đèn tầng 3 bị cháy, cần thay mới"
+ *               deadline: "2025-12-10T17:00:00Z"
  *     responses:
  *       201:
  *         description: Tạo task thành công
@@ -66,7 +73,7 @@ router.post("/tasks", taskService.CreateTask);
  *         name: status
  *         schema:
  *           type: string
- *         description: Trạng thái task
+ *         description: Trạng thái task (PENDING, PROCESSING, ...)
  *       - in: query
  *         name: technicianId
  *         schema:
@@ -100,8 +107,7 @@ router.get("/tasks", taskService.GetTasks);
  *         required: true
  *         schema:
  *           type: string
- *         description: 
- *           type: string
+ *         description: Mã task (T0001, T0002, ...)
  *     responses:
  *       200:
  *         description: Chi tiết task
@@ -115,14 +121,14 @@ router.get("/tasks/:taskCode", taskService.GetTaskById);
  * /api/tasks/{taskCode}:
  *   put:
  *     tags: [Task]
- *     summary: Cập nhật thông tin task
+ *     summary: Cập nhật thông tin task (tiêu đề/mô tả/kỹ thuật viên/deadline)
  *     parameters:
  *       - in: path
  *         name: taskCode
  *         required: true
  *         schema:
  *           type: string
- *         description: Mã task (TK-...)
+ *         description: Mã task (T0001, ...)
  *     requestBody:
  *       required: true
  *       content:
@@ -140,6 +146,11 @@ router.get("/tasks/:taskCode", taskService.GetTaskById);
  *               deadline:
  *                 type: string
  *                 format: date-time
+ *             example:
+ *               title: "Cập nhật mô tả nhiệm vụ"
+ *               description: "Thay cả máng đèn, không chỉ bóng"
+ *               technicianId: "tech-002"
+ *               deadline: "2025-12-11T10:00:00Z"
  *     responses:
  *       200:
  *         description: Cập nhật thành công
@@ -150,13 +161,68 @@ router.put("/tasks/:taskCode", taskService.UpdateTask);
 
 /**
  * @openapi
+ * /api/tasks/{taskCode}/status:
+ *   patch:
+ *     tags: [Task]
+ *     summary: Cập nhật trạng thái task (generic)
+ *     description: >
+ *       API generic để đổi status trong các trường hợp đặc biệt.
+ *       Flow chính vẫn nên dùng các endpoint chuyên biệt
+ *       như /technician-complete và /manager-review.
+ *     parameters:
+ *       - in: path
+ *         name: taskCode
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 description: >
+ *                   Trạng thái mới của task.
+ *                   Hỗ trợ: PENDING, WAITING_MATERIAL_LIST,
+ *                   PROCESSING, WAITING_APPROVAL, APPROVED, REJECTED.
+ *               reason:
+ *                 type: string
+ *                 description: "Lý do (nếu từ chối / ghi chú trạng thái)"
+ *               isFailedStandard:
+ *                 type: boolean
+ *                 description: "Flag đánh dấu không đạt chuẩn (ít dùng, tuỳ team)"
+ *               changedBy:
+ *                 type: string
+ *                 description: "ID người thay đổi trạng thái"
+ *             example:
+ *               status: "WAITING_MATERIAL_LIST"
+ *               reason: "Technician gửi danh sách vật tư"
+ *               isFailedStandard: false
+ *               changedBy: "tech-001"
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *       400:
+ *         description: Trạng thái không hợp lệ
+ *       404:
+ *         description: Không tìm thấy task
+ */
+router.patch("/tasks/:taskCode/status", taskService.UpdateTaskStatus);
+
+/**
+ * @openapi
  * /api/tasks/{taskCode}/technician-complete:
  *   patch:
  *     tags: [Task]
  *     summary: Technician báo đã xử lí xong task
  *     description: >
- *       Technician upload file (ảnh/video) minh chứng, system chuyển trạng thái
- *       task sang WAITING_APPROVAL.
+ *       Technician upload file (ảnh/video) minh chứng,
+ *       system chuyển trạng thái task từ PROCESSING sang WAITING_APPROVAL.
  *     parameters:
  *       - in: path
  *         name: taskCode
@@ -181,9 +247,17 @@ router.put("/tasks/:taskCode", taskService.UpdateTask);
  *               changedBy:
  *                 type: string
  *                 description: "ID technician (nếu không gửi thì lấy từ header x-user-id)"
+ *             example:
+ *               note: "Đã thay bóng mới, kiểm tra hoạt động bình thường"
+ *               attachmentIds:
+ *                 - "media-123"
+ *                 - "media-124"
+ *               changedBy: "tech-001"
  *     responses:
  *       200:
  *         description: Đã cập nhật task sang WAITING_APPROVAL
+ *       400:
+ *         description: Sai trạng thái hiện tại (không phải PROCESSING)
  *       404:
  *         description: Không tìm thấy task
  */
@@ -199,8 +273,15 @@ router.patch(
  *     tags: [Task]
  *     summary: Manager duyệt / không duyệt task
  *     description: >
- *       Manager xem minh chứng, quyết định approve hay reject. Nếu reject thì
- *       gắn cờ FAILED_STANDARD và cho technician làm lại.
+ *       Áp dụng cho 2 phase:
+ *
+ *       * Nếu task đang ở **WAITING_MATERIAL_LIST**:
+ *         - isApproved = true  -> chuyển sang **PROCESSING** (OK, bắt đầu thi công)
+ *         - isApproved = false -> chuyển sang **REJECTED** (không chấp nhận danh sách vật tư)
+ *
+ *       * Nếu task đang ở **WAITING_APPROVAL**:
+ *         - isApproved = true  -> chuyển sang **APPROVED** (kết thúc task)
+ *         - isApproved = false -> quay lại **PROCESSING** (Technician làm lại)
  *     parameters:
  *       - in: path
  *         name: taskCode
@@ -221,13 +302,19 @@ router.patch(
  *                 description: true = duyệt, false = không duyệt
  *               reason:
  *                 type: string
- *                 description: Lý do nếu không duyệt
+ *                 description: Lý do nếu không duyệt / ghi chú thêm
  *               changedBy:
  *                 type: string
  *                 description: "ID manager (nếu không gửi thì lấy từ header x-user-id)"
+ *             example:
+ *               isApproved: true
+ *               reason: "Vật tư hợp lý, cho phép triển khai"
+ *               changedBy: "manager-001"
  *     responses:
  *       200:
  *         description: Cập nhật trạng thái theo quyết định của Manager
+ *       400:
+ *         description: Task không ở WAITING_MATERIAL_LIST hoặc WAITING_APPROVAL
  *       404:
  *         description: Không tìm thấy task
  */
@@ -235,48 +322,5 @@ router.patch(
   "/tasks/:taskCode/manager-review",
   taskService.ManagerReviewTask
 );
-
-/**
- * @openapi
- * /api/tasks/{taskCode}/status:
- *   patch:
- *     tags: [Task]
- *     summary: Cập nhật trạng thái task (generic)
- *     parameters:
- *       - in: path
- *         name: taskCode
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - status
- *             properties:
- *               status:
- *                 type: string
- *                 description: "Trạng thái mới của task (PENDING, PROCESSING, WAITING_APPROVAL, APPROVED, REJECTED, FAILED_STANDARD, ...)"
- *               reason:
- *                 type: string
- *                 description: "Lý do (nếu từ chối / không đạt tiêu chuẩn)"
- *               isFailedStandard:
- *                 type: boolean
- *                 description: "Đánh dấu Không đạt tiêu chuẩn"
- *               changedBy:
- *                 type: string
- *                 description: "ID người thay đổi trạng thái"
- *     responses:
- *       200:
- *         description: Cập nhật trạng thái thành công
- *       400:
- *         description: Trạng thái không hợp lệ
- *       404:
- *         description: Không tìm thấy task
- */
-router.patch("/tasks/:taskCode/status", taskService.UpdateTaskStatus);
 
 module.exports = router;

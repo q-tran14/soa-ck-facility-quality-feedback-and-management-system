@@ -1,13 +1,14 @@
 // Task-Management-Service/models/task.js
 const mongoose = require("mongoose");
 
+// Enum trạng thái Task – đúng theo flow mới
 const TASK_STATUS = {
   PENDING: "PENDING",
+  WAITING_MATERIAL_LIST: "WAITING_MATERIAL_LIST",
   PROCESSING: "PROCESSING",
   WAITING_APPROVAL: "WAITING_APPROVAL",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
-  FAILED_STANDARD: "FAILED_STANDARD",
 };
 
 const StatusHistorySchema = new mongoose.Schema(
@@ -26,13 +27,13 @@ const TaskSchema = new mongoose.Schema(
     taskCode: {
       type: String,
       required: true,
-      unique: true,   // đảm bảo mỗi taskCode chỉ xuất hiện 1 lần
+      unique: true, // mỗi taskCode chỉ xuất hiện 1 lần
     },
 
     // gắn với report
-    reportId: { type: String, required: true },     // ví dụ RP-U01-01
-    managerId: { type: String, required: true },    // Manager tạo task
-    technicianId: { type: String },                 // Technician được giao
+    reportId: { type: String, required: true },
+    managerId: { type: String, required: true },
+    technicianId: { type: String },
 
     title: { type: String, required: true },
     description: String,
@@ -44,6 +45,13 @@ const TaskSchema = new mongoose.Schema(
       default: TASK_STATUS.PENDING,
     },
 
+    // Dùng cho phần khiếu nại của citizen, KHÔNG đụng tới trong ManagerReview
+    disqualifiedCount: {
+      type: Number,
+      default: 0,
+    },
+
+    // Nếu sau này cần flag “không đạt chuẩn” thì vẫn dùng được
     isFailedStandard: { type: Boolean, default: false },
     reason: String,
     attachments: [{ type: String }],
