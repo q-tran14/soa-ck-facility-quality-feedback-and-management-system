@@ -13,16 +13,6 @@ const TASK_STATUS = {
   COMPLETED: "COMPLETED",               // Đã xong hoàn toàn (MỚI)
 };
 
-const StatusHistorySchema = new mongoose.Schema(
-  {
-    status: { type: String, enum: Object.values(TASK_STATUS), required: true },
-    note: String,
-    changedBy: { type: String, required: true },
-    changedAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
 const TaskSchema = new mongoose.Schema(
   {
     // Mã task để hiển thị
@@ -47,18 +37,11 @@ const TaskSchema = new mongoose.Schema(
       default: TASK_STATUS.PENDING,
     },
 
-    // Dùng cho phần khiếu nại của citizen, KHÔNG đụng tới trong ManagerReview
     disqualifiedCount: {
       type: Number,
       default: 0,
     },
 
-    // Nếu sau này cần flag “không đạt chuẩn” thì vẫn dùng được
-    isFailedStandard: { type: Boolean, default: false },
-    reason: String,
-    attachments: [{ type: String }],
-
-    statusHistory: [StatusHistorySchema],
   },
   { timestamps: true }
 );

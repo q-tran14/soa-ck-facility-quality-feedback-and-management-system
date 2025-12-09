@@ -193,16 +193,12 @@ router.put("/tasks/:taskCode", taskService.UpdateTask);
  *               reason:
  *                 type: string
  *                 description: "Lý do (nếu từ chối / ghi chú trạng thái)"
- *               isFailedStandard:
- *                 type: boolean
- *                 description: "Flag đánh dấu không đạt chuẩn (ít dùng, tuỳ team)"
  *               changedBy:
  *                 type: string
  *                 description: "ID người thay đổi trạng thái"
  *             example:
  *               status: "WAITING_MATERIAL_LIST"
  *               reason: "Technician gửi danh sách vật tư"
- *               isFailedStandard: false
  *               changedBy: "tech-001"
  *     responses:
  *       200:

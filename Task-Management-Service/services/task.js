@@ -5,14 +5,7 @@ const { updateReportStatus } = require("../clients/ircClient");
 
 // ================== Helpers chung ==================
 
-// Ghi log history status
-const pushStatusHistory = (task, { status, note, changedBy }) => {
-  task.statusHistory.push({
-    status,
-    note,
-    changedBy,
-  });
-};
+
 
 // Lấy userId/role (sau này nối UserService thì thay bằng req.user)
 const getCurrentUserId = (req) => req.headers["x-user-id"] || null;
@@ -95,11 +88,7 @@ const CreateTask = async (req, res) => {
       // disqualifiedCount dùng default trong schema
     });
 
-    pushStatusHistory(task, {
-      status: TASK_STATUS.PENDING,
-      note: "Task created",
-      changedBy: creatorId,
-    });
+
 
     await task.save();
     return res.status(201).json(task);
@@ -235,11 +224,7 @@ const TechnicianCompleteTask = async (req, res) => {
     task.isFailedStandard = false;
     task.reason = undefined;
 
-    pushStatusHistory(task, {
-      status: TASK_STATUS.WAITING_APPROVAL,
-      note: note || "Technician completed & waiting for approval",
-      changedBy: userId,
-    });
+
 
     await task.save();
     return res.status(200).json(task);
@@ -287,22 +272,12 @@ const ManagerReviewTask = async (req, res) => {
         task.status = TASK_STATUS.PROCESSING;
         task.reason = undefined;
 
-        pushStatusHistory(task, {
-          status: TASK_STATUS.PROCESSING,
-          note:
-            note ||
-            "Manager approved material list → chuyển sang PROCESSING",
-          changedBy: userId,
-        });
+
       } else {
         task.status = TASK_STATUS.REJECTED;
         task.reason = reason || note || "Manager rejected material list";
 
-        pushStatusHistory(task, {
-          status: TASK_STATUS.REJECTED,
-          note: task.reason,
-          changedBy: userId,
-        });
+
       }
     } else if (task.status === TASK_STATUS.WAITING_APPROVAL) {
       // ====== Duyệt / không duyệt kết quả thi công ======
@@ -310,11 +285,7 @@ const ManagerReviewTask = async (req, res) => {
         task.status = TASK_STATUS.APPROVED;
         task.reason = undefined;
 
-        pushStatusHistory(task, {
-          status: TASK_STATUS.APPROVED,
-          note: note || "Manager approved final result",
-          changedBy: userId,
-        });
+
       } else {
         task.status = TASK_STATUS.PROCESSING;
         task.reason =
@@ -322,11 +293,7 @@ const ManagerReviewTask = async (req, res) => {
           note ||
           "Manager không duyệt kết quả, yêu cầu technician xử lý lại";
 
-        pushStatusHistory(task, {
-          status: TASK_STATUS.PROCESSING,
-          note: task.reason,
-          changedBy: userId,
-        });
+  
       }
     } else {
       // Không đúng phase để duyệt
@@ -389,11 +356,7 @@ const UpdateTaskStatus = async (req, res) => {
       task.reason = reason;
     }
 
-    pushStatusHistory(task, {
-      status,
-      note: reason,
-      changedBy: changedBy || getActorId(req),
-    });
+
 
     await task.save();
     return res.status(200).json(task);
