@@ -1,44 +1,39 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-// Configure nodemailer transporter (using environment variables or defaults)
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const notificationController = {
-    // Send OTP Email
-    SendEmail: asyncHandler(async (req, res) => {
-        const { to, subject, text, html } = req.body;
+  // Send OTP Email
+  SendEmail: asyncHandler(async (req, res) => {
+    const { to, subject, text, html } = req.body;
 
-        // if (!to || !subject || !text) {
-        //     return res.status(400).json({ message: "Missing required fields (to, subject, text)" });
-        // }
+    if (!to || !subject || !text) {
+        return res.status(400).json({ message: "Missing required fields (to, subject, text)" });
+    }
 
-        const mailOptions = {
-        from: process.env.SMTP_USER,
+    try {
+      // Gửi email bằng Resend
+      await resend.emails.send({
+        from: "onboarding@resend.dev",
         to,
         subject,
         text,
-        ...(html && { html }),
-        };
+        html,
+      });
 
-        try {
-            await transporter.sendMail(mailOptions);
-            res.json({
-                message: "Notification sent to your email. Please check your email.",
-            });
-        } catch (error) {
-            console.error("Error sending recovery email:", error);
-            res.status(500).json({ message: "Failed to send notification to your email." });
-        }
-    }),
-}
+      res.json({
+        success: true,
+        message: "Notification sent successfully via Resend",
+      });
+    } catch (error) {
+      console.error("Error sending email via Resend:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to send email notification",
+      });
+    }
+  }),
+};
 
 module.exports = notificationController;

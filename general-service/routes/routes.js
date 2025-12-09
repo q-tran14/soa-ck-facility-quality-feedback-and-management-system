@@ -101,6 +101,10 @@ router.post("/otp/verify", otpController.VerifyOTP);
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - to
+ *               - subject
+ *               - text
  *             properties:
  *               to:
  *                 type: string
@@ -135,7 +139,7 @@ router.post("/email/send", notificationController.SendEmail);
  *               phone: { type: string }
  *               email: { type: string }
  *               password: { type: string }
- *               role: { type: string, enum: [Citizen, Manager, Technician] }
+ *               role: { type: string, enum: ["Citizen", "Manager", "Technician"] }
  *     responses:
  *       200:
  *         description: Đăng ký thành công
