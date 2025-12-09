@@ -92,6 +92,7 @@ const mediaService = {
           }
 
           const media = await Media.create({
+            originalName: req.file.originalname,
             publicId: result.public_id,
             url: result.secure_url,
             pdfUrl: null,
@@ -146,6 +147,7 @@ const mediaService = {
         }
 
         const media = await Media.create({
+          originalName: req.file.originalname,
           publicId: result.public_id,
           url: result.secure_url,
           pdfUrl,
@@ -184,6 +186,7 @@ const mediaService = {
 
     res.json({
       message: "File fetched",
+      originalName: media.originalName,
       url: media.url,
       pdfUrl: media.pdfUrl,
       provider: media.provider,

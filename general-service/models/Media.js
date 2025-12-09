@@ -1,7 +1,11 @@
 const mongoose = require("mongoose");
 
 const MediaSchema = new mongoose.Schema(
-  {
+  { 
+    originalName:{
+      type: String,
+      default: null,
+    },
     publicId: {
       type: String,
       required: true,
