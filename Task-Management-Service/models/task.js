@@ -9,6 +9,8 @@ const TASK_STATUS = {
   WAITING_APPROVAL: "WAITING_APPROVAL",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
+  WAITING_RESULT_APPROVAL: "WAITING_RESULT_APPROVAL", // Sửa xong, chờ nghiệm thu (MỚI)
+  COMPLETED: "COMPLETED",               // Đã xong hoàn toàn (MỚI)
 };
 
 const StatusHistorySchema = new mongoose.Schema(

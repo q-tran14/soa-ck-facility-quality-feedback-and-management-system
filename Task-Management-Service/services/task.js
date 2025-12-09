@@ -1,5 +1,7 @@
 // Task-Management-Service/services/task.js
 const { Task, TASK_STATUS } = require("../models/task");
+const { updateReportStatus } = require("../clients/ircClient");
+
 
 // ================== Helpers chung ==================
 
@@ -252,12 +254,11 @@ const TechnicianCompleteTask = async (req, res) => {
 
 // ========== Flow Manager duyệt ==========
 // PATCH /api/tasks/:taskCode/manager-review
-// Duyệt theo flow:
 //  - WAITING_MATERIAL_LIST:
 //      + isApproved = true  -> PROCESSING
 //      + isApproved = false -> REJECTED
 //  - WAITING_APPROVAL:
-//      + isApproved = true  -> APPROVED
+//      + isApproved = true  -> APPROVED (+ báo Report COMPLETED)
 //      + isApproved = false -> PROCESSING (làm lại)
 // Không đụng tới disqualifiedCount – chỉ tăng bên flow khiếu nại citizen
 const ManagerReviewTask = async (req, res) => {
@@ -265,7 +266,7 @@ const ManagerReviewTask = async (req, res) => {
     if (!ensureManagerOrTechnician(req, res)) return;
 
     const { taskCode } = req.params;
-    const { isApproved, reason } = req.body;
+    const { isApproved, reason, note } = req.body || {};
 
     if (typeof isApproved !== "boolean") {
       return res
@@ -281,20 +282,21 @@ const ManagerReviewTask = async (req, res) => {
     const userId = getActorId(req, task.managerId || "manager-unknown");
 
     if (task.status === TASK_STATUS.WAITING_MATERIAL_LIST) {
-      // Duyệt / không duyệt danh sách vật tư
+      // ====== Duyệt / không duyệt danh sách vật tư ======
       if (isApproved) {
         task.status = TASK_STATUS.PROCESSING;
         task.reason = undefined;
-        task.isFailedStandard = false;
 
         pushStatusHistory(task, {
           status: TASK_STATUS.PROCESSING,
-          note: "Manager approved material list → start PROCESSING",
+          note:
+            note ||
+            "Manager approved material list → chuyển sang PROCESSING",
           changedBy: userId,
         });
       } else {
         task.status = TASK_STATUS.REJECTED;
-        task.reason = reason || "Manager rejected material list";
+        task.reason = reason || note || "Manager rejected material list";
 
         pushStatusHistory(task, {
           status: TASK_STATUS.REJECTED,
@@ -303,21 +305,22 @@ const ManagerReviewTask = async (req, res) => {
         });
       }
     } else if (task.status === TASK_STATUS.WAITING_APPROVAL) {
-      // Duyệt / không duyệt kết quả thi công
+      // ====== Duyệt / không duyệt kết quả thi công ======
       if (isApproved) {
         task.status = TASK_STATUS.APPROVED;
         task.reason = undefined;
-        task.isFailedStandard = false;
 
         pushStatusHistory(task, {
           status: TASK_STATUS.APPROVED,
-          note: "Manager approved final result",
+          note: note || "Manager approved final result",
           changedBy: userId,
         });
       } else {
         task.status = TASK_STATUS.PROCESSING;
         task.reason =
-          reason || "Manager không duyệt kết quả, yêu cầu technician xử lý lại";
+          reason ||
+          note ||
+          "Manager không duyệt kết quả, yêu cầu technician xử lý lại";
 
         pushStatusHistory(task, {
           status: TASK_STATUS.PROCESSING,
@@ -333,6 +336,19 @@ const ManagerReviewTask = async (req, res) => {
     }
 
     await task.save();
+
+    // 🔗 Nếu vừa APPROVED thì báo cho IRC-Service: report => COMPLETED
+    if (task.status === TASK_STATUS.APPROVED && task.reportId) {
+      updateReportStatus(
+        task.reportId,
+        "COMPLETED",
+        `Task ${task.taskCode} đã được APPROVED`,
+        "MANAGER" // header X-Role cho IRC service
+      ).catch((err) =>
+        console.error("[ManagerReviewTask] updateReportStatus error:", err)
+      );
+    }
+
     return res.status(200).json(task);
   } catch (error) {
     console.error("ManagerReviewTask error:", error);
@@ -342,6 +358,7 @@ const ManagerReviewTask = async (req, res) => {
     });
   }
 };
+
 
 
 // ========== API đổi status tự do (nếu vẫn muốn giữ) ==========
