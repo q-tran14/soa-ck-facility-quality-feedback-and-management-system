@@ -172,8 +172,8 @@ def update_report_status(
 # --- GET ALL & FILTER ---
 @router.get("/reports", response_model=list)
 def get_reports(
-    caller_id: str = Depends(get_user_id_from_header), # Vẫn dùng hàm cũ
-    caller_role: str = Depends(get_user_role),         # Vẫn dùng hàm cũ
+    caller_id: str = Depends(get_user_id_from_header), 
+    caller_role: str = Depends(get_user_role),       
     
     reporter_id: Optional[str] = Query(None),
     status: Optional[ReportStatus] = Query(None),

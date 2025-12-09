@@ -3,14 +3,14 @@ from model.Complaint import Complaint, ComplaintCreate
 # Import reports_collection để check trạng thái báo cáo gốc
 from database import complaints_collection, reports_collection
 from datetime import datetime
-import uuid
+from reporting_service_route import verify_user_from_general_service
 
 router = APIRouter()
 
 # ! CALL USER SERVICE TO VERIFY USER (UserID)
 # Hàm lấy UserID từ Header
-def get_user_id_from_header(x_user_id: str = Header(..., alias="user-id")):
-    return x_user_id
+def get_user_id_from_header(user_id: str = Header(..., alias="user-id")): # Tên biến 'user_id'
+    return user_id
 ## ---- ##
 
 def complaint_serializer(complaint) -> dict:
@@ -27,11 +27,12 @@ def complaint_serializer(complaint) -> dict:
 # TẠO KHIẾU NẠI DỰA TRÊN REPORT ID TRÊN URL
 # URL sẽ có dạng: /api/complaint/report/R-123456
 @router.post("/report/{report_id}", response_model=dict)
-def create_complaint(
+async def create_complaint(
     report_id: str, 
     complaint_input: ComplaintCreate,
-    user_id: str = Depends(get_user_id_from_header)
+    user_info: dict = Depends(verify_user_from_general_service)
 ):
+    user_id = user_info["UserID"]
     # 1. Kiểm tra Report tồn tại
     report = reports_collection.find_one({"ReportId": report_id})
     if not report:
