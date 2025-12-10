@@ -36,7 +36,6 @@ class IncidentTypeEnum(str, Enum):
 class ReportBase(BaseModel):
     IncidentType: Optional[IncidentTypeEnum] = None 
     Content: Optional[str] = None
-    MediaID: Optional[str] = Field(None, description="ID của file media đã upload lên General Service")
     Address: Optional[AddressSchema] = None
     Note: Optional[str] = None
     Status: Optional[ReportStatus] = None
@@ -51,6 +50,7 @@ class ReportCreate(BaseModel):
 class Report(ReportCreate):
     ReportId: str
     Title: str
+    MediaID: Optional[str] = Field(None, description="ID của file media đã upload lên General Service")
     Status: ReportStatus = Field(default=ReportStatus.WAITING) 
     Created_at: datetime
     Updated_at: Optional[datetime] = None

@@ -57,9 +57,9 @@ def report_serializer(report) -> dict:
         "id": str(report["_id"]),
         "ReportId": report["ReportId"],
         "Title": report["Title"],
-        "IncidentType": report.get("IncidentType"), 
+        "IncidentType": report.get("IncidentType"),
+        "MediaID": report.get("MediaID"), 
         "Content": report.get("Content"),
-        # KHÔNG CÓ MediaURL Ở ĐÂY (VÌ ĐÃ BỊ XÓA KHỎI Report model)
         "Address": report["Address"],
         "Created_at": report["Created_at"],
         "Updated_at": report.get("Updated_at"),
