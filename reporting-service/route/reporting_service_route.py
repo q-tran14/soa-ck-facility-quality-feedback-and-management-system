@@ -9,14 +9,14 @@ router = APIRouter()
 
 GENERAL_SERVICE_URL = "https://general-service-u75j.onrender.com/api/users"
 
-# --- AUTH HELPERS (CŨ - GIỮ LẠI ĐỂ CÁC ENDPOINT KHÁC KHÔNG BỊ LỖI) ---
+# --- AUTH HELPERS  ---
 def get_user_role(x_role: str = Header("USER", alias="X-Role")):
     return x_role
 
 def get_user_id_from_header(x_user_id: str = Header(..., alias="user-id")):
     return x_user_id
 
-# --- AUTH HELPERS (MỚI - DÙNG CHO CREATE REPORT) ---
+# --- AUTH HELPERS ---
 async def verify_user_from_general_service(user_id: str = Header(..., alias="user-id")):
     """
     Hàm này sẽ:
@@ -59,7 +59,7 @@ def report_serializer(report) -> dict:
         "Title": report["Title"],
         "IncidentType": report.get("IncidentType"), 
         "Content": report.get("Content"),
-        "MediaURL": report["MediaURL"],
+        # KHÔNG CÓ MediaURL Ở ĐÂY (VÌ ĐÃ BỊ XÓA KHỎI Report model)
         "Address": report["Address"],
         "Created_at": report["Created_at"],
         "Updated_at": report.get("Updated_at"),
@@ -77,6 +77,7 @@ async def create_report(
     user_id = user_info["UserID"]
     
     report_data = report_input.dict()
+    # MediaURL đã bị xóa khỏi ReportCreate nên không cần xử lý ở đây
     auto_title = f"Sự cố hạ tầng - {report_input.IncidentType.value}"
     report_data["Title"] = auto_title
     
@@ -98,7 +99,7 @@ async def create_report(
 @router.put("/reports/{report_id}", response_model=dict)
 def update_report(
     report_id: str, 
-    updated_data: ReportBase,
+    updated_data: ReportBase, # Không có MediaURL
     role: str = Depends(get_user_role) # Vẫn dùng hàm cũ
 ):
     if role == "TECHNICIAN":
@@ -107,7 +108,7 @@ def update_report(
             detail="Permission denied: Technicians cannot modify report details. Please contact Manager."
         )
 
-    update_data_dict = {k: v for k, v in updated_data.dict().items() if v is not None}
+    update_data_dict = {k: v for k, v in updated_data.dict().items() if v is not None} # Không bao gồm MediaURL
     if not update_data_dict:
          raise HTTPException(status_code=400, detail="No data provided to update")
 

@@ -36,7 +36,6 @@ class IncidentTypeEnum(str, Enum):
 class ReportBase(BaseModel):
     IncidentType: Optional[IncidentTypeEnum] = None 
     Content: Optional[str] = None
-    MediaURL: Optional[str] = None
     Address: Optional[AddressSchema] = None
     Note: Optional[str] = None
     Status: Optional[ReportStatus] = None
@@ -46,7 +45,6 @@ class ReportBase(BaseModel):
 class ReportCreate(BaseModel):
     IncidentType: IncidentTypeEnum = Field(..., description="Chọn loại sự cố")
     Content: str
-    MediaURL: str  # Bắt buộc
     Address: AddressSchema   # Bắt buộc 
 
 # 6. Report: Dùng cho việc RESPONSE (GET)
