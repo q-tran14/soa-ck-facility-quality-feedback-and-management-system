@@ -36,10 +36,10 @@ class IncidentTypeEnum(str, Enum):
 class ReportBase(BaseModel):
     IncidentType: Optional[IncidentTypeEnum] = None 
     Content: Optional[str] = None
+    MediaID: Optional[str] = Field(None, description="ID của file media đã upload lên General Service")
     Address: Optional[AddressSchema] = None
     Note: Optional[str] = None
     Status: Optional[ReportStatus] = None
-    # ĐÃ XÓA ManagerID và TechnicianID
 
 # 5. ReportCreate: Dùng cho việc CREATE (POST)
 class ReportCreate(BaseModel):
